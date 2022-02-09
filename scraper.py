@@ -1,29 +1,84 @@
 import re
 from urllib.parse import urlparse
+from urllib.parse import urljoin
+from urllib.parse import urldefrag
 from bs4 import BeautifulSoup
+from nltk.tokenize import word_tokenize
+from utils.config import Config
+import nltk
+import pickle
+from bs4 import BeautifulSoup
+nltk.download('punkt')
 from utils import get_domain, get_parts
 
-def scraper(url, resp, domains):
-    links = extract_next_links(url, resp, domains)
-    return [link for link in links if is_valid(link)]
 
-def extract_next_links(url, resp, domains):
-    # Implementation required.
-    # url: the URL that was used to get the page
-    # resp.url: the actual url of the page
-    # resp.status: the status code returned by the server. 200 is OK, you got the page. Other numbers mean that there was some kind of problem.
-    # resp.error: when status is not 200, you can check the error here, if needed.
-    # resp.raw_response: this is where the page actually is. More specifically, the raw_response has two parts:
-    #         resp.raw_response.url: the url, again
-    #         resp.raw_response.content: the content of the page!
-    # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
-    if not is_valid_page(resp):
-        return []
+def scraper(url, resp, config):
+    links = extract_next_links(url, resp, config)
+    #max length of the page missing
+    url_dict = {
+        "urls_done":[],
+        "max_length_page_url":"",
+        "max_page_length":0
+        }
+    try:
+        with open(f"FileDumps/AllUrls.pickle", 'rb') as handle:
+            urls_done = pickle.load(handle)['urls_done']
+            urls_done += links
+            pickle.dump(urls_done, handle, protocol=pickle.HIGHEST_PROTOCOL)    
+    except (OSError, IOError, EOFError) as e:
+        url_dict["urls_done"] = links
+        pickle.dump(url_dict, open(f"FileDumps/AllUrls.pickle", 'wb'))
 
-    html_text = resp.raw_response.content
-    soup = BeautifulSoup(html_text, "html.parser").find_all("a")
-    links = clean_and_filter_urls([link.get("href") for link in soup], url, domains)
     return links
+
+def extract_next_links(url, resp, config):
+    if resp.status != 200:
+        print("Incorrect response")
+        return list()
+    html = resp.raw_response.content
+    soup = BeautifulSoup(html, 'html.parser')
+    urls_extracted = set()
+    fdist = {}
+    try:
+        with open(f"FileDumps/AllTokens.pickle", 'rb') as handle:
+            fdist = pickle.load(handle)
+    except (OSError, IOError, EOFError) as e:
+        pickle.dump(fdist, open(f"FileDumps/AllTokens.pickle", 'wb'))
+
+    try:
+        with open(f"FileDumps/AllUrls.pickle", 'rb+') as handle:
+            data_loaded = pickle.load(handle)
+            max_len_file = data_loaded["max_page_length"]
+            print(len(html), max_len_file)
+            if len(html) > max_len_file:
+                data_loaded["max_length_page_url"] = url
+                data_loaded["max_page_length"] = len(html)
+                #print(data_loaded["max_page_length"], data_loaded["max_length_page_url"])
+                pickle.dump(data_loaded,open(f"FileDumps/AllUrls.pickle", 'wb'))
+    except (OSError, IOError, EOFError) as e:
+        url_dict = {"urls_done":[], "max_length_page_url": url, "max_page_length":len(html)}
+        pickle.dump(url_dict, open(f"FileDumps/AllTokens.pickle", 'wb'))
+     
+    data = soup.get_text()          
+    tokens = word_tokenize(data)
+    for token in tokens:
+        if token in fdist.keys():
+            fdist[token] += 1
+        else:
+            fdist[token] = 1
+   
+    for link in soup.find_all('a'):
+        path = link.get('href')
+        if path and path.startswith('/'):
+            path = urljoin(url, path)
+            defrag_path = urldefrag(path) #defragment the URL
+            urls_extracted.add(defrag_path.url) 
+            parsed_url = urlparse(defrag_path.url)
+            text_file_save = str(parsed_url.netloc + parsed_url.path).replace('/','_')
+            
+    with open(f"FileDumps/AllTokens.pickle", 'wb') as handle:
+        pickle.dump(fdist, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    return clean_and_filter_urls(list(urls_extracted), url, config.domains) 
 
 def clean_and_filter_urls(urls, curUrl, domains):
     list = []
@@ -39,10 +94,6 @@ def clean_and_filter_urls(urls, curUrl, domains):
         list.append(url)
     return list
 
-def is_valid_page(resp):
-    if(resp.status>400):
-        return False
-    return True
 
 def is_valid(url):
     # Decide whether to crawl this url or not. 
@@ -50,6 +101,8 @@ def is_valid(url):
     # There are already some conditions that return False.
     try:
         parsed = urlparse(url)
+        #check seed_url hostnames for validity
+        #check if fragme
         if parsed.scheme not in set(["http", "https"]):
             return False
         return not re.match(
