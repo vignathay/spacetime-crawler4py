@@ -29,6 +29,13 @@ def get_urlhash(url):
         f"{parsed.netloc}/{parsed.path}/{parsed.params}/"
         f"{parsed.query}/{parsed.fragment}".encode("utf-8")).hexdigest()
 
+def get_domain(url):
+    parsed = urlparse(url)
+    return parsed.netloc
+
+def get_parts(url):
+    return urlparse(url)
+
 def normalize(url):
     if url.endswith("/"):
         return url.rstrip("/")

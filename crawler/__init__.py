@@ -1,6 +1,7 @@
 from utils import get_logger
 from crawler.frontier import Frontier
 from crawler.worker import Worker
+from threading import Lock
 
 class Crawler(object):
     def __init__(self, config, restart, frontier_factory=Frontier, worker_factory=Worker):
@@ -11,8 +12,9 @@ class Crawler(object):
         self.worker_factory = worker_factory
 
     def start_async(self):
+        frontier_url_lock = Lock()
         self.workers = [
-            self.worker_factory(worker_id, self.config, self.frontier)
+            self.worker_factory(worker_id, self.config, self.frontier, frontier_url_lock = frontier_url_lock)
             for worker_id in range(self.config.threads_count)]
         for worker in self.workers:
             worker.start()

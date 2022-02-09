@@ -1,13 +1,13 @@
 import re
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
+from utils import get_domain, get_parts
 
-
-def scraper(url, resp):
-    links = extract_next_links(url, resp)
+def scraper(url, resp, domains):
+    links = extract_next_links(url, resp, domains)
     return [link for link in links if is_valid(link)]
 
-def extract_next_links(url, resp):
+def extract_next_links(url, resp, domains):
     # Implementation required.
     # url: the URL that was used to get the page
     # resp.url: the actual url of the page
@@ -22,14 +22,19 @@ def extract_next_links(url, resp):
 
     html_text = resp.raw_response.content
     soup = BeautifulSoup(html_text, "html.parser").find_all("a")
-    links = clean_and_filter_urls([link.get("href") for link in soup], url)
+    links = clean_and_filter_urls([link.get("href") for link in soup], url, domains)
     return links
 
-def clean_and_filter_urls(urls, curUrl):
+def clean_and_filter_urls(urls, curUrl, domains):
     list = []
+    parsed_cur_url = get_parts(curUrl)
     for url in urls:
+        if url is None:
+            continue
+        if(url.startswith('/')):
+            url =  f"{parsed_cur_url.scheme}://{parsed_cur_url.netloc}{url}"
         url = url.split('#')[0]
-        if(len(url) == 0):
+        if len(url) == 0 or get_domain(url) not in domains:
             continue
         list.append(url)
     return list
