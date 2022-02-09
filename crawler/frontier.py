@@ -46,6 +46,10 @@ class Frontier(object):
         ''' This function can be overridden for alternate saving techniques. '''
         total_count = len(self.save)
         tbd_count = 0
+        list_domains = set()
+        for seed_url in self.config.seed_urls:
+            parsed_url = urlparse(seed_url)
+            list_domains.add(parsed_url.netloc)
         for url, completed in self.save.values():
             if not completed and is_valid(url):
                 domain = get_domain(url)
