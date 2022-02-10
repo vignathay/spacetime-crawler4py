@@ -33,6 +33,21 @@ def get_domain(url):
     parsed = urlparse(url)
     return parsed.netloc
 
+def get_valid_domain(url, domains):
+    cur_domain = get_domain(url)
+    for domain in domains:
+        if domain in cur_domain:
+            return domain
+    return None
+
+def is_valid_domain(url, domains):
+    cur_domain = get_domain(url)
+    for domain in domains:
+        if domain in cur_domain:
+            return True
+    return False
+
+
 def get_parts(url):
     return urlparse(url)
 

@@ -9,7 +9,7 @@ import nltk
 import pickle
 from bs4 import BeautifulSoup
 nltk.download('punkt')
-from utils import get_domain, get_parts
+from utils import is_valid_domain, get_parts
 
 
 def scraper(url, resp, config):
@@ -49,7 +49,7 @@ def extract_next_links(url, resp, config):
         with open(f"FileDumps/AllUrls.pickle", 'rb+') as handle:
             data_loaded = pickle.load(handle)
             max_len_file = data_loaded["max_page_length"]
-            print(len(html), max_len_file)
+            # print(len(html), max_len_file)
             if len(html) > max_len_file:
                 data_loaded["max_length_page_url"] = url
                 data_loaded["max_page_length"] = len(html)
@@ -69,11 +69,12 @@ def extract_next_links(url, resp, config):
    
     for link in soup.find_all('a'):
         path = link.get('href')
-        if path and path.startswith('/'):
-            path = urljoin(url, path)
-            defrag_path = urldefrag(path) #defragment the URL
-            urls_extracted.add(defrag_path.url) 
-            parsed_url = urlparse(defrag_path.url)
+        if path is not None:
+            if path.startswith('/'):
+                path = urljoin(url, path)
+            path = urldefrag(path).url #defragment the URL
+            urls_extracted.add(path) 
+            parsed_url = urlparse(path)
             text_file_save = str(parsed_url.netloc + parsed_url.path).replace('/','_')
             
     with open(f"FileDumps/AllTokens.pickle", 'wb') as handle:
@@ -89,7 +90,9 @@ def clean_and_filter_urls(urls, curUrl, domains):
         if(url.startswith('/')):
             url =  f"{parsed_cur_url.scheme}://{parsed_cur_url.netloc}{url}"
         url = url.split('#')[0]
-        if len(url) == 0 or get_domain(url) not in domains:
+        if len(url) == 0 or not is_valid_domain(url, domains):
+            continue
+        if not is_valid(url):
             continue
         list.append(url)
     return list
@@ -104,8 +107,6 @@ def is_valid(url):
         #check seed_url hostnames for validity
         #check if fragme
         if parsed.scheme not in set(["http", "https"]):
-            return False
-        if parsed.netloc not in list_domains:
             return False
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"

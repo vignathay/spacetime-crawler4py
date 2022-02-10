@@ -5,7 +5,7 @@ import time
 from threading import Thread, RLock
 from queue import Queue, Empty
 
-from utils import get_logger, get_urlhash, normalize, get_domain
+from utils import get_logger, get_urlhash, normalize, get_valid_domain
 from scraper import is_valid
 class Frontier(object):
     def __init__(self, config, restart):
@@ -13,6 +13,7 @@ class Frontier(object):
         self.config = config
         self.to_be_downloaded = {}
         self.domain_locks = {}
+        self.added_count = 0
         for domain in config.domains:
             self.to_be_downloaded[domain] = list()
             self.domain_locks[domain] = False
@@ -39,20 +40,16 @@ class Frontier(object):
                 for url in self.config.seed_urls:
                     self.add_url(url)
     
-    def get_domain_locks(self):
-        return self.domain_locks
 
     def _parse_save_file(self):
         ''' This function can be overridden for alternate saving techniques. '''
         total_count = len(self.save)
         tbd_count = 0
-        list_domains = set()
-        for seed_url in self.config.seed_urls:
-            parsed_url = urlparse(seed_url)
-            list_domains.add(parsed_url.netloc)
         for url, completed in self.save.values():
             if not completed and is_valid(url):
-                domain = get_domain(url)
+                domain = get_valid_domain(url, self.config.domains)
+                if domain is None:
+                    continue 
                 self.to_be_downloaded[domain].append(url)
                 tbd_count += 1
         self.logger.info(
@@ -78,7 +75,9 @@ class Frontier(object):
 
     def add_url(self, url):
         url = normalize(url)
-        domain = get_domain(url)
+        domain = get_valid_domain(url, self.config.domains)
+        if domain is None:
+            return
         urlhash = get_urlhash(url)
         if urlhash not in self.save:
             self.save[urlhash] = (url, False)
