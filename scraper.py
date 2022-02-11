@@ -11,23 +11,12 @@ from bs4 import BeautifulSoup
 nltk.download('punkt')
 from utils import is_valid_domain, get_parts
 
+nltk.download('stopwords')
+from nltk.corpus import stopwords
+
 
 def scraper(url, resp, config):
     links = extract_next_links(url, resp, config)
-    #max length of the page missing
-    url_dict = {
-        "urls_done":[],
-        "max_length_page_url":"",
-        "max_page_length":0
-        }
-    try:
-        with open(f"FileDumps/AllUrls.pickle", 'rb') as handle:
-            urls_done = pickle.load(handle)['urls_done']
-            urls_done += links
-            pickle.dump(urls_done, handle, protocol=pickle.HIGHEST_PROTOCOL)    
-    except (OSError, IOError, EOFError) as e:
-        url_dict["urls_done"] = links
-        pickle.dump(url_dict, open(f"FileDumps/AllUrls.pickle", 'wb'))
 
     return links
 
@@ -39,33 +28,21 @@ def extract_next_links(url, resp, config):
     soup = BeautifulSoup(html, 'html.parser')
     urls_extracted = set()
     fdist = {}
-    try:
-        with open(f"FileDumps/AllTokens.pickle", 'rb') as handle:
-            fdist = pickle.load(handle)
-    except (OSError, IOError, EOFError) as e:
-        pickle.dump(fdist, open(f"FileDumps/AllTokens.pickle", 'wb'))
 
-    try:
-        with open(f"FileDumps/AllUrls.pickle", 'rb+') as handle:
-            data_loaded = pickle.load(handle)
-            max_len_file = data_loaded["max_page_length"]
-            # print(len(html), max_len_file)
-            if len(html) > max_len_file:
-                data_loaded["max_length_page_url"] = url
-                data_loaded["max_page_length"] = len(html)
-                #print(data_loaded["max_page_length"], data_loaded["max_length_page_url"])
-                pickle.dump(data_loaded,open(f"FileDumps/AllUrls.pickle", 'wb'))
-    except (OSError, IOError, EOFError) as e:
-        url_dict = {"urls_done":[], "max_length_page_url": url, "max_page_length":len(html)}
-        pickle.dump(url_dict, open(f"FileDumps/AllTokens.pickle", 'wb'))
      
     data = soup.get_text()          
     tokens = word_tokenize(data)
+
+    with open("FileDumps/AllUrls.txt", 'a') as f:
+        f.write(str(len(tokens))+' '+url+'\n')
+        
+    stop_words = set(stopwords.words('english'))
+
     for token in tokens:
-        if token in fdist.keys():
-            fdist[token] += 1
-        else:
-            fdist[token] = 1
+        if((token not in stop_words) and len(token)>1):
+            with open("FileDumps/AllTokens.txt", 'a') as f:
+                f.write(token+', ')
+
    
     for link in soup.find_all('a'):
         path = link.get('href')
@@ -77,8 +54,6 @@ def extract_next_links(url, resp, config):
             parsed_url = urlparse(path)
             text_file_save = str(parsed_url.netloc + parsed_url.path).replace('/','_')
             
-    with open(f"FileDumps/AllTokens.pickle", 'wb') as handle:
-        pickle.dump(fdist, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return clean_and_filter_urls(list(urls_extracted), url, config.domains) 
 
 def clean_and_filter_urls(urls, curUrl, domains):
@@ -108,15 +83,25 @@ def is_valid(url):
         #check if fragme
         if parsed.scheme not in set(["http", "https"]):
             return False
-        return not re.match(
-            r".*\.(css|js|bmp|gif|jpe?g|ico"
-            + r"|png|tiff?|mid|mp2|mp3|mp4"
-            + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
-            + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names"
-            + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
-            + r"|epub|dll|cnf|tgz|sha1"
-            + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
+        if re.search(r"pdf", parsed.path.lower()): #pdf file
+            return False
+        if 'wics.ics.uci.edu' in parsed.hostname and re.search('/events',url):
+            return False
+        if 'grape.ics.uci.edu' in parsed.hostname and '/wiki/' in url:
+            return False
+        if 'mt-live.ics.uci.edu' in parsed.hostname and '/events/' in url:
+            return False
+        if 'archive.ics.uci.edu' in parsed.hostname and '/ml/dataset' in url:
+            return False
+        if 'cbcl.ics.uci.edu' in parsed.hostname and ('do=' in url or '/data' in url or '/contact' in url):
+            return False
+        if 'evoke.ics.uci.edu' in parsed.hostname and 'replytocom' in url:
+            return False
+        if re.match(r".*\.(css|js|bmp|gif|jpe?g|ico" + r"|png|tiff?|mid|mp2|mp3|mp4" + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ppsx" + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names" + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso" + r"|epub|dll|cnf|tgz|sha1|tar.gz" + r"|thmx|mso|arff|rtf|jar|csv" + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower()):
+            return False
+        if re.match(r".*\.(css|js|bmp|gif|jpe?g|ico" + r"|png|tiff?|mid|mp2|mp3|mp4" + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ppsx" + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names" + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso" + r"|epub|dll|cnf|tgz|sha1|tar.gz" + r"|thmx|mso|arff|rtf|jar|csv" + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.query.lower()):
+            return False
+        return True
 
     except TypeError:
         print ("TypeError for ", parsed)
