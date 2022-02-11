@@ -6,21 +6,22 @@ from bs4 import BeautifulSoup
 from nltk.tokenize import word_tokenize
 from utils.config import Config
 import nltk
-import pickle
 from bs4 import BeautifulSoup
 nltk.download('punkt')
 from utils import is_valid_domain, get_parts
-
+import time
 nltk.download('stopwords')
 from nltk.corpus import stopwords
 
+stop_words = set(stopwords.words('english'))
 
-def scraper(url, resp, config):
-    links = extract_next_links(url, resp, config)
+
+def scraper(url, resp, config, url_logger, url_logger_lock, token_logger, token_logger_lock):
+    links = extract_next_links(url, resp, config, url_logger, url_logger_lock, token_logger, token_logger_lock)
 
     return links
 
-def extract_next_links(url, resp, config):
+def extract_next_links(url, resp, config, url_logger, url_logger_lock, token_logger, token_logger_lock):
     if resp.status != 200:
         print("Incorrect response")
         return list()
@@ -33,17 +34,12 @@ def extract_next_links(url, resp, config):
     data = soup.get_text()          
     tokens = word_tokenize(data)
 
-    with open("FileDumps/AllUrls.txt", 'a') as f:
-        f.write(str(len(tokens))+' '+url+'\n')
+    lock_and_write(url_logger, str(len(tokens))+' '+url+'\n', url_logger_lock, config.frontier_pool_delay)
         
-    stop_words = set(stopwords.words('english'))
 
-    for token in tokens:
-        if((token not in stop_words) and len(token)>1):
-            with open("FileDumps/AllTokens.txt", 'a') as f:
-                f.write(token+', ')
+    filtered_tokens = [token for token in tokens if token not in stop_words]
+    lock_and_write(token_logger, ", ".join(filtered_tokens) , token_logger_lock, config.frontier_pool_delay)
 
-   
     for link in soup.find_all('a'):
         path = link.get('href')
         if path is not None:
@@ -71,6 +67,15 @@ def clean_and_filter_urls(urls, curUrl, domains):
             continue
         list.append(url)
     return list
+
+def lock_and_write(fp, text, lock, delay):
+    while lock.locked():
+        time.sleep(delay)
+        continue
+    lock.acquire()
+    fp.write(text)
+    lock.release()
+
 
 
 def is_valid(url):
