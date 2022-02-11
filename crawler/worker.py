@@ -11,6 +11,7 @@ class Worker(Thread):
     def __init__(self, worker_id, config, frontier, frontier_url_lock, url_logger_lock, token_logger_lock, url_logger, token_logger):
         Thread.__init__(self)
         self.logger = get_logger(f"Worker-{worker_id}", "Worker")
+        self.time_logger = get_logger(f"W-{worker_id}", f"Worker---{worker_id}")
         self.config = config
         self.frontier = frontier
         self.frontier_url_lock =frontier_url_lock
@@ -18,7 +19,7 @@ class Worker(Thread):
         self.token_logger_lock =token_logger_lock
         self.url_logger = url_logger
         self.token_logger = token_logger
-
+        self.prev_time = time.time()
         # basic check for requests in scraper
         assert {getsource(scraper).find(req) for req in {"from requests import", "import requests"}} == {-1}, "Do not use requests from scraper.py"
         super().__init__(daemon=True)
@@ -35,7 +36,10 @@ class Worker(Thread):
             if not tbd_url:
                 self.logger.info("Frontier is empty. Stopping Crawler.")
                 break
+            cur_time = time.time()
+            self.time_logger.info((cur_time - self.prev_time) )
             resp = download(tbd_url, self.config, self.logger)
+            self.prev_time=time.time()
             self.logger.info(
                 f"count {self.frontier.added_count} Downloaded {tbd_url}, status <{resp.status}>, "
                 f"using cache {self.config.cache_server}.")
