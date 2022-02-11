@@ -36,8 +36,13 @@ def extract_next_links(url, resp, config, url_logger, url_logger_lock, token_log
 
     lock_and_write(url_logger, str(len(tokens))+' '+url+'\n', url_logger_lock, config.frontier_pool_delay)
         
+    filtered_tokens = []
+    for token in tokens:
+        token = re.sub(r'[^\x00-\x7F]+', '', token)
+        token = token.lower()
+        if((token not in stop_words) and re.match(r"[a-zA-Z0-9@#*&']{2,}", token)):
+            filtered_tokens.append(token)
 
-    filtered_tokens = [token for token in tokens if token not in stop_words]
     lock_and_write(token_logger, ", ".join(filtered_tokens) , token_logger_lock, config.frontier_pool_delay)
 
     for link in soup.find_all('a'):
@@ -96,11 +101,17 @@ def is_valid(url):
             return False
         if 'mt-live.ics.uci.edu' in parsed.hostname and '/events/' in url:
             return False
+        if 'mt-live.ics.uci.edu' in parsed.hostname and 'people' in parsed.path.lower():
+            return False
         if 'archive.ics.uci.edu' in parsed.hostname and '/ml/dataset' in url:
             return False
         if 'cbcl.ics.uci.edu' in parsed.hostname and ('do=' in url or '/data' in url or '/contact' in url):
             return False
         if 'evoke.ics.uci.edu' in parsed.hostname and 'replytocom' in url:
+            return False
+        if 'swiki.ics.uci.edu' in parsed.hostname:
+            return False
+        if 'sli.ics.uci.edu' in parsed.hostname and 'download' in url:
             return False
         if re.match(r".*\.(css|js|bmp|gif|jpe?g|ico" + r"|png|tiff?|mid|mp2|mp3|mp4" + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ppsx" + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names" + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso" + r"|epub|dll|cnf|tgz|sha1|tar.gz" + r"|thmx|mso|arff|rtf|jar|csv" + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower()):
             return False

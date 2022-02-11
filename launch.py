@@ -12,7 +12,13 @@ def main(config_file, restart):
     config = Config(cparser)
     config.cache_server = get_cache_server(config, restart)
     crawler = Crawler(config, restart)
-    crawler.start()
+
+    try:
+        crawler.start()
+    except:
+        from metrics import UrlMetrics, TokenMetrics
+        UrlMetrics()
+        TokenMetrics()
 
 
 if __name__ == "__main__":
