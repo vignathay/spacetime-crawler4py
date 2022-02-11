@@ -32,14 +32,15 @@ class Worker(Thread):
             self.frontier_url_lock.acquire()
             tbd_url = self.frontier.get_tbd_url()
             self.frontier.added_count+=1
+            url_count = self.frontier.added_count
+            self.frontier_url_lock.release()
             if not tbd_url:
                 self.logger.info("Frontier is empty. Stopping Crawler.")
                 break
             resp = download(tbd_url, self.config, self.logger)
             self.logger.info(
-                f"count {self.frontier.added_count} Downloaded {tbd_url}, status <{resp.status}>, "
+                f"count {url_count} Downloaded {tbd_url}, status <{resp.status}>, "
                 f"using cache {self.config.cache_server}.")
-            self.frontier_url_lock.release()
             scraped_urls = scraper.scraper(tbd_url, resp, self.config, self.url_logger, self.url_logger_lock, self.token_logger, self.token_logger_lock)
             for scraped_url in scraped_urls:
                 self.frontier.add_url(scraped_url)

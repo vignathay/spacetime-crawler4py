@@ -2,8 +2,7 @@ import os
 import shelve
 import time
 
-from threading import Thread, RLock
-from queue import Queue, Empty
+from threading import Lock
 
 from utils import get_logger, get_urlhash, normalize, get_valid_domain
 from scraper import is_valid
@@ -14,6 +13,7 @@ class Frontier(object):
         self.to_be_downloaded = {}
         self.domain_locks = {}
         self.added_count = 0
+        self.safe_sync_lock = Lock()
         for domain in config.domains:
             self.to_be_downloaded[domain] = list()
             self.domain_locks[domain] = False
@@ -80,9 +80,13 @@ class Frontier(object):
             return
         urlhash = get_urlhash(url)
         if urlhash not in self.save:
+            while self.safe_sync_lock.locked():
+                time.sleep(self.config.frontier_pool_delay)
+            self.safe_sync_lock.acquire()
             self.save[urlhash] = (url, False)
             self.save.sync()
             self.to_be_downloaded[domain].append(url)
+            self.safe_sync_lock.release()
     
     def mark_url_complete(self, url):
         urlhash = get_urlhash(url)
@@ -90,6 +94,9 @@ class Frontier(object):
             # This should not happen.
             self.logger.error(
                 f"Completed url {url}, but have not seen it before.")
-
+        while self.safe_sync_lock.locked():
+            time.sleep(self.config.frontier_pool_delay)
+        self.safe_sync_lock.acquire()
         self.save[urlhash] = (url, True)
         self.save.sync()
+        self.safe_sync_lock.release()
