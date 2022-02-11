@@ -101,6 +101,8 @@ def is_valid(url):
             return False
         if 'mt-live.ics.uci.edu' in parsed.hostname and '/events/' in url:
             return False
+        if 'mt-live.ics.uci.edu' in parsed.hostname and 'people' in parsed.path.lower():
+            return False
         if 'archive.ics.uci.edu' in parsed.hostname and '/ml/dataset' in url:
             return False
         if 'cbcl.ics.uci.edu' in parsed.hostname and ('do=' in url or '/data' in url or '/contact' in url):
