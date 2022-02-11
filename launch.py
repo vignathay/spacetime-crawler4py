@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 from utils.server_registration import get_cache_server
 from utils.config import Config
 from crawler import Crawler
+from metrics import UrlMetrics, TokenMetrics
 
 
 def main(config_file, restart):
@@ -12,7 +13,12 @@ def main(config_file, restart):
     config = Config(cparser)
     config.cache_server = get_cache_server(config, restart)
     crawler = Crawler(config, restart)
-    crawler.start()
+
+    try:
+        crawler.start()
+    except:
+        UrlMetrics()
+        TokenMetrics()
 
 
 if __name__ == "__main__":
