@@ -81,7 +81,9 @@ def extract_next_links(url, resp, config, url_logger, url_logger_lock, token_log
 
     data = soup.get_text()
     tokens = word_tokenize(data)
-    
+    # adding unique url's to a log file
+    lock_and_write(url_logger, str(len(tokens)) + ' ' + url + '\n', url_logger_lock, config.frontier_pool_delay)
+
     filtered_tokens = []
     for token in tokens:
         token = re.sub(r'[^\x00-\x7F]+', '', token)
@@ -95,7 +97,6 @@ def extract_next_links(url, resp, config, url_logger, url_logger_lock, token_log
     if not check_simhash(url_logger_lock, config.frontier_pool_delay, filtered_tokens): #avoiding similar pages
         return list()
 
-    lock_and_write(url_logger, str(len(tokens)) + ' ' + url + '\n', url_logger_lock, config.frontier_pool_delay)
     lock_and_write(token_logger, ", ".join(filtered_tokens), token_logger_lock, config.frontier_pool_delay)
 
     for link in soup.find_all('a'):
