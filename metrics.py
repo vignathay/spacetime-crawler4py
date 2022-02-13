@@ -17,7 +17,7 @@ def UrlMetrics():
     uniquepages=set()
     subdomaincount = dict()
 
-    with open("FileDumps/AllUrls.txt", 'r') as f:
+    with open("AllUrls.txt", 'r') as f:
         for line in f:
             pagelist = line.split(' ')
             if(int(pagelist[0])>maxpagecount):
@@ -46,7 +46,7 @@ def UrlMetrics():
 def TokenMetrics():
     tokenlist=[]
     tokendict ={}
-    with open("FileDumps/AllTokens.txt", 'r') as f:
+    with open("AllTokens.txt", 'r') as f:
         tokenlist = f.readlines()
         # print(tokenlist[0].split(', '))
         # print(dict(Counter(tokenlist[0].split(', ')))) 
