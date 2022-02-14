@@ -2,7 +2,7 @@ from utils import get_logger
 from crawler.frontier import Frontier
 from crawler.worker import Worker
 from threading import Lock
-import os
+import sys
 
 class Crawler(object):
     def __init__(self, config, restart, frontier_factory=Frontier, worker_factory=Worker):
@@ -35,11 +35,18 @@ class Crawler(object):
             worker.start()
 
     def start(self):
-        self.start_async()
-        self.join()
-        self.url_logger.close()
-        self.token_logger.close()
-        self.simhash_logger.close()
+        try:
+            self.start_async()
+            self.join()
+            self.url_logger.close()
+            self.token_logger.close()
+            self.simhash_logger.close()
+        except :
+        # quit
+            self.url_logger.close()
+            self.token_logger.close()
+            self.simhash_logger.close()
+            sys.exit()
 
     def join(self):
         for worker in self.workers:
