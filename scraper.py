@@ -19,26 +19,39 @@ import hashlib
 stop_words = set(stopwords.words('english'))
 
 past_hash = []
+past_hash_urls = []
 
 
-def compare_simhash(lock, delay, res):
-    for i in range(len(past_hash)):
-        if '{0:80b}'.format(res ^ past_hash[i]).count("1") / 128.0 < 0.1:  # 10% dissimilar
-            print("Pages are similar with score: ", 1 - '{0:80b}'.format(res ^ past_hash[i]).count("1") / 128.0,
-                  " similar url is: ", past_hash[i])
-            return False
+def compare_simhash(lock, fp, delay, res, url):
+    filtered = False
+    past_url = ""
+    similarity = 0
+    for i in range(len(past_hash) - 1, -1, -1):
+        similarity = 1 - '{0:80b}'.format(res ^ past_hash[i]).count("1") / 128.0
+        if similarity > 0.9:  # 90% similar
+            # print("Pages are similar with score: ", similarity, " similar url's are: ", url, " ;;; ", past_hash_urls[i])
+            filtered = True
+            past_url = past_hash_urls[i]
+            break
     while lock.locked():
         time.sleep(delay)
         continue
     lock.acquire()
+    if filtered:
+        # print("writing to file")
+        fp.write("Pages are similar with score: " + str(similarity) + " similar url's are: " + url + " ;;; " + past_url)
+        lock.release()
+        return False
     if len(past_hash) >= 50:
         del past_hash[0]
+        del past_hash_urls[0]
     past_hash.append(res)
+    past_hash_urls.append(url)
     lock.release()
     return True
 
 
-def check_simhash(lock, delay, tokens):
+def check_simhash(lock, fp, delay, tokens, url):
     hash_ls = []
     for token in tokens:
         hash_ls.append(hashlib.md5(token.encode()))
@@ -61,16 +74,19 @@ def check_simhash(lock, delay, tokens):
             sum_ = 0
 
         res += sum_ * 2 ** i
-    return compare_simhash(lock, delay, res)
+    return compare_simhash(lock, fp, delay, res, url)
 
 
-def scraper(url, resp, config, url_logger, url_logger_lock, token_logger, token_logger_lock):
-    links = extract_next_links(url, resp, config, url_logger, url_logger_lock, token_logger, token_logger_lock)
+def scraper(url, resp, config, url_logger, url_logger_lock, token_logger, token_logger_lock, simhash_logger,
+            simhash_lock):
+    links = extract_next_links(url, resp, config, url_logger, url_logger_lock, token_logger, token_logger_lock,
+                               simhash_logger, simhash_lock)
 
     return links
 
 
-def extract_next_links(url, resp, config, url_logger, url_logger_lock, token_logger, token_logger_lock):
+def extract_next_links(url, resp, config, url_logger, url_logger_lock, token_logger, token_logger_lock, simhash_logger,
+                       simhash_lock):
     if resp.status != 200:
         print("Incorrect response")
         return list()
@@ -90,11 +106,12 @@ def extract_next_links(url, resp, config, url_logger, url_logger_lock, token_log
         token = token.lower()
         if ((token not in stop_words) and re.match(r"[a-zA-Z0-9@#*&']{2,}", token)):
             filtered_tokens.append(token)
-    
-    if len(filtered_tokens) < 30: #avoiding less information sites
+
+    if len(filtered_tokens) < 30:  # avoiding less information sites
         return list()
-    
-    if not check_simhash(url_logger_lock, config.frontier_pool_delay, filtered_tokens): #avoiding similar pages
+
+    if not check_simhash(simhash_lock, simhash_logger, config.frontier_pool_delay, filtered_tokens,
+                         url):  # avoiding similar pages
         return list()
 
     lock_and_write(token_logger, ", ".join(filtered_tokens), token_logger_lock, config.frontier_pool_delay)
@@ -149,11 +166,11 @@ def is_valid(url):
 
         if parsed.scheme not in set(["http", "https"]):
             return False
-        if 'ical=' in url: #Downloding calendar file 
+        if 'ical=' in url:  # Downloding calendar file
             return False
         if re.search(r"pdf", parsed.path.lower()):  # pdf file
             return False
-        if 'wics.ics.uci.edu' in parsed.hostname and (re.search('/events', url) or 'eventDate' in url): #events 
+        if 'wics.ics.uci.edu' in parsed.hostname and (re.search('/events', url) or 'eventDate' in url):  # events
             return False
         if 'grape.ics.uci.edu' in parsed.hostname and '/wiki/' in url:
             return False
@@ -161,21 +178,24 @@ def is_valid(url):
             return False
         if 'mt-live.ics.uci.edu' in parsed.hostname and 'people' in parsed.path.lower():
             return False
-        if 'archive.ics.uci.edu' in parsed.hostname and '/ml/dataset' in url: #datasets 
+        if 'archive.ics.uci.edu' in parsed.hostname and '/ml/dataset' in url:  # datasets
             return False
         if 'cbcl.ics.uci.edu' in parsed.hostname and ('do=' in url or '/data' in url or '/contact' in url):
             return False
-        if 'evoke.ics.uci.edu' in parsed.hostname and ('replytocom' in url or 'comment' in url): #comment threads and replies
+        if 'evoke.ics.uci.edu' in parsed.hostname and (
+                'replytocom' in url or 'comment' in url):  # comment threads and replies
             return False
         if 'swiki.ics.uci.edu' in parsed.hostname:
             return False
-        if 'sli.ics.uci.edu' in parsed.hostname and 'download' in url: #download dataset
+        if 'sli.ics.uci.edu' in parsed.hostname and 'download' in url:  # download dataset
             return False
         if re.match(
-                r".*\.(css|js|bmp|gif|jpe?g|ico" + r"|png|tiff?|mid|mp2|mp3|mp4" + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ppsx" + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names" + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso" + r"|epub|dll|cnf|tgz|sha1|tar.gz" + r"|thmx|mso|arff|rtf|jar|csv" + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower()):
+                r".*\.(css|js|bmp|gif|jpe?g|ico" + r"|png|tiff?|mid|mp2|mp3|mp4" + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ppsx" + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names" + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso" + r"|epub|dll|cnf|tgz|sha1|tar.gz" + r"|thmx|mso|arff|rtf|jar|csv" + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$",
+                parsed.path.lower()):
             return False
         if re.match(
-                r".*\.(css|js|bmp|gif|jpe?g|ico" + r"|png|tiff?|mid|mp2|mp3|mp4" + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ppsx" + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names" + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso" + r"|epub|dll|cnf|tgz|sha1|tar.gz" + r"|thmx|mso|arff|rtf|jar|csv" + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.query.lower()):
+                r".*\.(css|js|bmp|gif|jpe?g|ico" + r"|png|tiff?|mid|mp2|mp3|mp4" + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|ppsx" + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names" + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso" + r"|epub|dll|cnf|tgz|sha1|tar.gz" + r"|thmx|mso|arff|rtf|jar|csv" + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$",
+                parsed.query.lower()):
             return False
         return True
 
