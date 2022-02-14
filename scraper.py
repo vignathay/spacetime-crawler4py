@@ -39,7 +39,7 @@ def compare_simhash(lock, fp, delay, res, url):
     lock.acquire()
     if filtered:
         # print("writing to file")
-        fp.write("Pages are similar with score: " + str(similarity) + " similar url's are: " + url + " ;;; " + past_url)
+        fp.write("Pages are similar with score: " + str(similarity) + ", similar url's are: " + url + " ;;; " + past_url + "\n")
         lock.release()
         return False
     if len(past_hash) >= 50:
