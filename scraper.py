@@ -28,7 +28,7 @@ def compare_simhash(lock, fp, delay, res, url):
     similarity = 0
     for i in range(len(past_hash) - 1, -1, -1):
         similarity = 1 - '{0:80b}'.format(res ^ past_hash[i]).count("1") / 128.0
-        if similarity > 0.9:  # 90% similar
+        if similarity > 0.95:  # 95% similar
             # print("Pages are similar with score: ", similarity, " similar url's are: ", url, " ;;; ", past_hash_urls[i])
             filtered = True
             past_url = past_hash_urls[i]

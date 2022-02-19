@@ -1,4 +1,3 @@
-
 import re
 from urllib.parse import urlparse
 from urllib.parse import urljoin
@@ -59,11 +58,12 @@ def TokenMetrics():
     for key in tokendict:
         if(count==50):
             break
-        
+        if(ord(key[0]) == 39 and ord(key[1]) == 39):
+            continue
         print(key,tokendict[key])
         count+=1
 
 
-
-UrlMetrics()
-TokenMetrics()
+if __name__ == "__main__":
+    UrlMetrics()
+    TokenMetrics()
