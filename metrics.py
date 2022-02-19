@@ -40,7 +40,10 @@ def UrlMetrics():
     # print(uniquepages)
     print("MaxPageCount: " + str(maxpagecount) + " - MaxPageUrl: " + maxpageurl)
     print("Sub Domain dict")
-    print(subdomaincount)
+    #print(subdomaincount)
+    subdomaincount = dict(sorted(subdomaincount.items(), key=lambda x: x[0]))
+    for key in subdomaincount:
+        print(key, ": ", subdomaincount[key])
 
 def TokenMetrics():
     tokenlist=[]
